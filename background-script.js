@@ -3,39 +3,51 @@ var connected = false;
 var connection_url = '192.168.0.161';
 var connection_port = 1337;
 
+localStorage.setItem("creepyurl", "localhost");
+localStorage.setItem("creepyport", "1337");
+localStorage.setItem("creepycommand", "control");
+localStorage.setItem("creepyraw", "up");
+
+var message = {}
+var cmd = {}
+
 console.log("Creepy Started");
 
 browser.runtime.onMessage.addListener((m) => {
 	
-	console.log(m);
-	var msg = m.split(' ');
+	var cmd;
 
-	if (msg[0] == 'creepy')
-		switch (msg[1]) {
+	console.log(m);
+	var msg = JSON.parse(m);
+
+	if (typeof msg.meta != 'undefined')
+		switch (msg.meta) {
 			case 'connect':
-				if (!connected)
-					console.log('trying connect ', msg[2],parseInt(msg[3]));
-					connect(msg[2],parseInt(msg[3]));
+				if (!connected) {
+					connect(msg.url,msg.port);
+				} else {
+					message.info = connected;
+					console.log("connected");
+					browser.tabs.sendMessage(JSON.stringify(message))
+				}
 				break;
 
-			case 'command':
-				console.log(msg[1], msg[2]);
+			case 'raw':
+				console.log(msg);
 				if (connected)
-					send(m.split('creepy command ')[1]);
+					send(msg);
 				break;
 
 			case 'browser':
-				console.log(msg[1], msg[2]);
+				console.log(msg);
 				browser.tabs.query({
 					currentWindow:true,
 					active:true
 				}).then((t) => {
 					console.log(t)
 					if (connected)
-						send(msg[1] + ' ' + t[0].url);
+						send(msg);
 				}, console.log);
-
-				
 				break;
 
 			default:
@@ -45,12 +57,15 @@ browser.runtime.onMessage.addListener((m) => {
 })
 
 function connect(url,port) {
-	console.log('connecting')
 	ws = new WebSocket(`ws://${url}:${port}`, 'mine');
 
 	ws.onopen = function () {
+		localStorage.setItem("creepyport", port);
+		localStorage.setItem("creepyurl", url);
+		message.info = 'connected';
 		connected = true;
 		console.log("connected");
+		browser.tabs.sendMessage(JSON.stringify(message))
 		//ws.send('beast')
 	};
 
@@ -60,13 +75,6 @@ function connect(url,port) {
 }
 
 function send(cmd) {
-	ws.send(cmd);
+	ws.send(JSON.stringify(cmd));
 	console.log("Sending " + cmd);
-
-}
-
-browser.runtime.onMessage.addListener(notify);
-
-function notify(message) {
-	console.log(message + ' from runtime')
 }
